@@ -1,3 +1,4 @@
+import React, {useContext, useEffect} from 'react';
 import {useNonce} from '@shopify/hydrogen';
 import {defer} from '@shopify/remix-oxygen';
 import {
@@ -16,6 +17,10 @@ import favicon from '../public/favicon.svg';
 import resetStyles from './styles/reset.css';
 import appStyles from './styles/app.css';
 import {Layout} from '~/components/Layout';
+
+import {withEmotionCache} from '@emotion/react';
+import {ChakraProvider} from '@chakra-ui/react';
+import {ServerStyleContext, ClientStyleContext} from './context';
 
 /**
  * This is important to avoid re-fetching root queries on sub-navigations
@@ -96,6 +101,47 @@ export async function loader({context}) {
   );
 }
 
+const Document = withEmotionCache(({children}, emotionCache) => {
+  const serverStyleData = useContext(ServerStyleContext);
+  const clientStyleData = useContext(ClientStyleContext);
+
+  // Only executed on client
+  useEffect(() => {
+    // re-link sheet container
+    emotionCache.sheet.container = document.head;
+    // re-inject tags
+    const tags = emotionCache.sheet.tags;
+    emotionCache.sheet.flush();
+    tags.forEach((tag) => {
+      emotionCache.sheet._insertTag(tag);
+    });
+    // reset cache to reapply global styles
+    clientStyleData?.reset();
+  }, []);
+
+  return (
+    <html lang="en">
+      <head>
+        <Meta />
+        <Links />
+        {serverStyleData?.map(({key, ids, css}) => (
+          <style
+            key={key}
+            data-emotion={`${key} ${ids.join(' ')}`}
+            dangerouslySetInnerHTML={{__html: css}}
+          />
+        ))}
+      </head>
+      <body>
+        {children}
+        <ScrollRestoration />
+        <Scripts />
+        <LiveReload />
+      </body>
+    </html>
+  );
+});
+
 export default function App() {
   const nonce = useNonce();
   /** @type {LoaderReturnData} */
@@ -111,7 +157,11 @@ export default function App() {
       </head>
       <body>
         <Layout {...data}>
-          <Outlet />
+          <Document>
+            <ChakraProvider>
+              <Outlet />
+            </ChakraProvider>
+          </Document>
         </Layout>
         <ScrollRestoration nonce={nonce} />
         <Scripts nonce={nonce} />

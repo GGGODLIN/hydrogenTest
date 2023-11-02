@@ -1,6 +1,7 @@
 import {Suspense} from 'react';
 import {defer, redirect} from '@shopify/remix-oxygen';
 import {Await, Link, useLoaderData} from '@remix-run/react';
+import {Button} from '@chakra-ui/react';
 
 import {
   Image,
@@ -150,6 +151,7 @@ function ProductMain({selectedVariant, product, variants}) {
   return (
     <div className="product-main">
       <h1>{title}</h1>
+      <div style={{backgroundColor: 'pink'}}>{title}</div>
       <ProductPrice selectedVariant={selectedVariant} />
       <br />
       <Suspense
@@ -303,13 +305,13 @@ function AddToCartButton({analytics, children, disabled, lines, onClick}) {
             type="hidden"
             value={JSON.stringify(analytics)}
           />
-          <button
+          <Button
             type="submit"
             onClick={onClick}
             disabled={disabled ?? fetcher.state !== 'idle'}
           >
             {children}
-          </button>
+          </Button>
         </>
       )}
     </CartForm>
