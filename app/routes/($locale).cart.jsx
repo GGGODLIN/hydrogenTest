@@ -1,7 +1,7 @@
-import {Await, useMatches} from '@remix-run/react';
+import {Await, useMatches, useLoaderData} from '@remix-run/react';
 import {Suspense} from 'react';
 import {CartForm} from '@shopify/hydrogen';
-import {json} from '@shopify/remix-oxygen';
+import {json, defer} from '@shopify/remix-oxygen';
 import {CartMain} from '~/components/Cart';
 
 /**
@@ -86,16 +86,79 @@ export async function action({request, context}) {
   );
 }
 
+async function validateCustomerAccessToken(session, customerAccessToken) {
+  let isLoggedIn = false;
+  const headers = new Headers();
+  if (!customerAccessToken?.accessToken || !customerAccessToken?.expiresAt) {
+    return {isLoggedIn, headers};
+  }
+
+  const expiresAt = new Date(customerAccessToken.expiresAt).getTime();
+  const dateNow = Date.now();
+  const customerAccessTokenExpired = expiresAt < dateNow;
+
+  if (customerAccessTokenExpired) {
+    session.unset('customerAccessToken');
+    headers.append('Set-Cookie', await session.commit());
+  } else {
+    isLoggedIn = true;
+  }
+
+  return {isLoggedIn, headers};
+}
+
+export async function loader({context}) {
+  const {storefront, session, cart} = context;
+  const customerAccessToken = await session.get('customerAccessToken');
+  const publicStoreDomain = context.env.PUBLIC_STORE_DOMAIN;
+
+  // validate the customer access token is valid
+  const {isLoggedIn, headers} = await validateCustomerAccessToken(
+    session,
+    customerAccessToken,
+  );
+
+  // defer the cart query by not awaiting it
+  const cartPromise = await cart.get();
+
+  // defer the footer query (below the fold)
+  const footerPromise = storefront.query(FOOTER_QUERY, {
+    cache: storefront.CacheLong(),
+    variables: {
+      footerMenuHandle: 'footer', // Adjust to your footer menu handle
+    },
+  });
+
+  // await the header query (above the fold)
+  const headerPromise = storefront.query(HEADER_QUERY, {
+    cache: storefront.CacheLong(),
+    variables: {
+      headerMenuHandle: 'main-menu', // Adjust to your header menu handle
+    },
+  });
+
+  return defer(
+    {
+      cart: cartPromise,
+      footer: footerPromise,
+      header: await headerPromise,
+      isLoggedIn,
+      publicStoreDomain,
+    },
+    {headers},
+  );
+}
+
 export default function Cart() {
   const [root] = useMatches();
-  const cart = root.data?.cart;
-  console.log('root', root);
+  const data = useLoaderData();
+  const cart = data?.cart;
+  console.log('data', data, cart);
 
   return (
     <div className="cart test123">
       <h1>CartTEST</h1>
       <Suspense fallback={<p>Loading cart ...test</p>}>
-        <div>test456</div>
         <Await errorElement={<div>An error occurred</div>} resolve={cart}>
           {(cart) => {
             return <CartMain layout="page" cart={cart} root={root} />;
@@ -111,3 +174,72 @@ export default function Cart() {
 /** @typedef {import('@shopify/remix-oxygen').ActionArgs} ActionArgs */
 /** @typedef {import('storefrontapi.generated').CartApiQueryFragment} CartApiQueryFragment */
 /** @typedef {import('@shopify/remix-oxygen').SerializeFrom<typeof action>} ActionReturnData */
+const MENU_FRAGMENT = `#graphql
+  fragment MenuItem on MenuItem {
+    id
+    resourceId
+    tags
+    title
+    type
+    url
+  }
+  fragment ChildMenuItem on MenuItem {
+    ...MenuItem
+  }
+  fragment ParentMenuItem on MenuItem {
+    ...MenuItem
+    items {
+      ...ChildMenuItem
+    }
+  }
+  fragment Menu on Menu {
+    id
+    items {
+      ...ParentMenuItem
+    }
+  }
+`;
+
+const HEADER_QUERY = `#graphql
+  fragment Shop on Shop {
+    id
+    name
+    description
+    primaryDomain {
+      url
+    }
+    brand {
+      logo {
+        image {
+          url
+        }
+      }
+    }
+  }
+  query Header(
+    $country: CountryCode
+    $headerMenuHandle: String!
+    $language: LanguageCode
+  ) @inContext(language: $language, country: $country) {
+    shop {
+      ...Shop
+    }
+    menu(handle: $headerMenuHandle) {
+      ...Menu
+    }
+  }
+  ${MENU_FRAGMENT}
+`;
+
+const FOOTER_QUERY = `#graphql
+  query Footer(
+    $country: CountryCode
+    $footerMenuHandle: String!
+    $language: LanguageCode
+  ) @inContext(language: $language, country: $country) {
+    menu(handle: $footerMenuHandle) {
+      ...Menu
+    }
+  }
+  ${MENU_FRAGMENT}
+`;

@@ -6,7 +6,7 @@ import {useVariantUrl} from '~/utils';
  * @param {CartMainProps}
  */
 export function CartMain({layout, cart, root}) {
-  console.log('cart2', cart, layout, 'root', root);
+  console.log('cart2', cart, layout);
   const linesCount = Boolean(cart?.lines?.nodes?.length || 0);
   console.log('linesCount', linesCount);
   const withDiscount =

@@ -22,7 +22,6 @@ export async function loader({context}) {
  * @param {ActionArgs}
  */
 export async function action({request, context}) {
-  console.log('request', await request.formData());
   const {session, storefront} = context;
 
   if (request.method !== 'POST') {
@@ -31,12 +30,15 @@ export async function action({request, context}) {
 
   try {
     const form = await request.formData();
+    console.log('form', form);
     const email = String(form.has('email') ? form.get('email') : '');
     const password = String(form.has('password') ? form.get('password') : '');
     const validInputs = Boolean(email && password);
 
     if (!validInputs) {
-      throw new Error('Please provide both an email and a password.');
+      throw new Error(
+        `Please provide both an email and a password.Email:${email},password:${password}`,
+      );
     }
 
     const {customerAccessTokenCreate} = await storefront.mutate(
