@@ -89,14 +89,16 @@ export async function action({request, context}) {
 export default function Cart() {
   const [root] = useMatches();
   const cart = root.data?.cart;
+  console.log('root', root);
 
   return (
-    <div className="cart">
-      <h1>Cart</h1>
-      <Suspense fallback={<p>Loading cart ...</p>}>
+    <div className="cart test123">
+      <h1>CartTEST</h1>
+      <Suspense fallback={<p>Loading cart ...test</p>}>
+        <div>test456</div>
         <Await errorElement={<div>An error occurred</div>} resolve={cart}>
           {(cart) => {
-            return <CartMain layout="page" cart={cart} />;
+            return <CartMain layout="page" cart={cart} root={root} />;
           }}
         </Await>
       </Suspense>

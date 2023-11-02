@@ -22,6 +22,7 @@ export async function loader({context}) {
  * @param {ActionArgs}
  */
 export async function action({request, context}) {
+  console.log('request', await request.formData());
   const {session, storefront} = context;
 
   if (request.method !== 'POST') {
